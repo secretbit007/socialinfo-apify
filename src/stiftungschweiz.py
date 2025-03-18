@@ -89,4 +89,5 @@ async def scrape_stiftungschweiz_data(dataset):
         jobs.extend(results)
 
     for job in jobs:
-        await dataset.push_data(job)
+        if job:
+            await dataset.push_data(job)

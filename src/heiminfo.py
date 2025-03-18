@@ -122,5 +122,6 @@ async def scrape_heiminfo_data(dataset):
 
 
     for job in jobs:
-        await dataset.push_data(job)
+        if job:
+            await dataset.push_data(job)
 

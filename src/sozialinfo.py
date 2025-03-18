@@ -213,4 +213,5 @@ async def scrape_sozialinfo_data(dataset):
         jobs.extend(results)
 
     for job in jobs:
-        await dataset.push_data(job)
+        if job:
+            await dataset.push_data(job)

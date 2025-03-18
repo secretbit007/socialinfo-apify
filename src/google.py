@@ -84,5 +84,6 @@ async def scrape_google_data(dataset):
     jobs = await get_jobs()
     
     for job in jobs:
-        await dataset.push_data(job)
+        if job:
+            await dataset.push_data(job)
         

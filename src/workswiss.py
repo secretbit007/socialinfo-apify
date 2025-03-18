@@ -132,4 +132,5 @@ async def scrape_workswiss_data(dataset):
     getJobs(categories, jobs)
 
     for job in jobs:
-        await dataset.push_data(job)
+        if job:
+            await dataset.push_data(job)
