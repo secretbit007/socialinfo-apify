@@ -200,7 +200,7 @@ def get_detail(slug: dict) -> dict:
             info['sourced_email'] = get_email(main_text)
             
         info['sourced_phone'] = get_phone(main_text)
-
+        info.pop('slug')
         break
     
     return info
