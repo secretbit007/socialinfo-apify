@@ -8,7 +8,6 @@ from selenium.webdriver.common.by import By
 from concurrent.futures import ThreadPoolExecutor
 from bs4 import BeautifulSoup
 from time import sleep
-from apify import Actor
 
 def get_urls():
     while True:
@@ -157,7 +156,7 @@ def get_detail(jobUrl: str):
         
         return info
 
-async def scrape_publicjobs_data():
+async def scrape_publicjobs_data(dataset):
     jobUrls = get_urls()
     jobs = []
 
@@ -166,8 +165,5 @@ async def scrape_publicjobs_data():
         
         jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)

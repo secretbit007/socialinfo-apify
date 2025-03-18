@@ -4,7 +4,6 @@ from math import ceil
 from bs4 import BeautifulSoup, Tag
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
-from apify import Actor
 
 def get_detail(article):
     respDetail = requests.get(article)
@@ -82,7 +81,7 @@ def get_detail(article):
         
     return row
 
-async def scrape_heiminfo_data():
+async def scrape_heiminfo_data(dataset):
     articleLinks = []
     headers = {
         'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -121,9 +120,7 @@ async def scrape_heiminfo_data():
 
         jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
 
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)
 

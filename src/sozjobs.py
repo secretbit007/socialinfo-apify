@@ -3,7 +3,6 @@ import json
 import requests
 from concurrent.futures import ThreadPoolExecutor
 from bs4 import BeautifulSoup
-from apify import Actor
 
 def getDetail(info: str):
     jobId = info['i']
@@ -82,7 +81,7 @@ def getDetail(info: str):
                     
     return result
     
-async def scrape_sozjobs_data():
+async def scrape_sozjobs_data(dataset):
     jobs = []
     resp = requests.get('https://www.sozjobs.ch/')
 
@@ -95,9 +94,6 @@ async def scrape_sozjobs_data():
 
             jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)
                 

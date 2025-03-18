@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-from apify import Actor
 
 def getIds(category):
     page = 1
@@ -124,7 +123,7 @@ def getDetail(id: str):
             
     return job
 
-async def scrape_jobs_data():
+async def scrape_jobs_data(dataset):
     jobs = []
     jobIds = []
 
@@ -137,10 +136,7 @@ async def scrape_jobs_data():
 
         jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)
             
         

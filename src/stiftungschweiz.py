@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from apify import Actor
 
 def get_slugs():
     is_first = True
@@ -80,7 +79,7 @@ def get_detail(info):
 
     return row
 
-async def scrape_stiftungschweiz_data():
+async def scrape_stiftungschweiz_data(dataset):
     jobs = []
     slugs = get_slugs()
     
@@ -89,8 +88,5 @@ async def scrape_stiftungschweiz_data():
 
         jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)

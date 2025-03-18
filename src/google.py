@@ -2,7 +2,6 @@ import re
 from selenium_driverless import webdriver
 from selenium_driverless.types.by import By
 from time import sleep
-from apify import Actor
 
 async def get_jobs():
     result = []
@@ -81,12 +80,9 @@ async def get_jobs():
         
     return result
 
-async def scrape_google_data():
+async def scrape_google_data(dataset):
     jobs = await get_jobs()
     
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)
         

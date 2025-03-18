@@ -5,8 +5,6 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from math import ceil
 
-from apify import Actor
-
 def get_slugs() -> list:
     is_first = True
     page_limit = 0
@@ -205,7 +203,7 @@ def get_detail(slug: dict) -> dict:
     
     return info
     
-async def scrape_sozialinfo_data() -> None:
+async def scrape_sozialinfo_data(dataset):
     slugs = get_slugs()
     
     jobs = []
@@ -214,8 +212,5 @@ async def scrape_sozialinfo_data() -> None:
 
         jobs.extend(results)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)

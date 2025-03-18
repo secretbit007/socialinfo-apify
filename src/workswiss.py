@@ -1,5 +1,4 @@
 import requests
-from apify import Actor
 
 def getCategories():
     url = 'https://www.job-room.ch/referenceservice/api/_search/occupations/label?prefix=sozial&types=AVAM,CHISCO3,CHISCO5&resultSize=50&_ng=ZGU='
@@ -126,14 +125,11 @@ def getJobs(categories: list, jobItems: list):
         
         page += 1
     
-async def scrape_workswiss_data():
+async def scrape_workswiss_data(dataset):
     jobs = []
     
     categories = getCategories()
     getJobs(categories, jobs)
 
-    async with Actor:
-        dataset = await Actor.open_dataset(name='socialinfo')
-
-        for job in jobs:
-            await dataset.push_data(job)
+    for job in jobs:
+        await dataset.push_data(job)
