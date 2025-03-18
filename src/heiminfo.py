@@ -1,16 +1,10 @@
-import os
 import re
 import requests
-import pandas as pd
-import xlsxwriter
 from math import ceil
 from bs4 import BeautifulSoup, Tag
 from typing import List
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy.orm import Session
-
-from models.orders import Order
+from apify import Actor
 
 def get_detail(article):
     respDetail = requests.get(article)
@@ -55,7 +49,9 @@ def get_detail(article):
                                 break
                         
                         if emailObj:
-                            row['sourced_email'] = emailObj.group(0)
+                            email = emailObj.group(0).strip()
+                            email = re.sub(r'\.ch.+', '.ch', email)
+                            row['sourced_email'] = email
                         
                         plzObj = contactObj.find('span', class_='plz')
                         cityObj = contactObj.find('span', class_='city')
@@ -86,53 +82,48 @@ def get_detail(article):
         
     return row
 
-def scrape_data(start_date, end_date, order_id, session: Session):
-    try:
-        if not os.path.exists('data'):
-            os.mkdir('data')
-        
-        articleLinks = []
-        headers = {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Referer': 'https://www.heiminfo.ch/institutionen/',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-        
-        s = requests.Session()
-        response = s.get('https://www.heiminfo.ch/institutionen/?sort=score&searchterm=&distance=&platform=&mandatory=&optional=&livingtype=&freeplaces=', headers=headers)
-        metaData = response.json()
-        pageSize = metaData['PAGESIZE']
-        total = metaData['TOTAL']
-        pageLimit = ceil(total / pageSize)
-        
-        def getUrl(page):
-            url = f'https://www.heiminfo.ch/institutionen/page/{page}'
-            resp = s.get(url, headers=headers)
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                
-                soup = BeautifulSoup(data['HTML'], 'html.parser')
-                articles: List[Tag] = soup.find_all('article', class_='institution')
-                
-                for article in articles:
-                    link = 'https://www.heiminfo.ch' + article.find('a').get('href')
-                    articleLinks.append(link)
-                    
-        with ThreadPoolExecutor(max_workers=50) as executor:
-            executor.map(getUrl, range(1, pageLimit + 1))
-        
-        
-        with ThreadPoolExecutor(max_workers=50) as executor:
-            jobs = list(executor.map(get_detail, articleLinks))
-        
-        df = pd.DataFrame(jobs, columns=['sourced_uid', 'sourced_title', 'sourced_percentage_lower', 'sourced_percentage_upper', 'sourced_position', 'sourced_organisation', 'sourced_employment', 'sourced_published_date', 'sourced_address', 'sourced_state', 'sourced_zip', 'sourced_city', 'sourced_url', 'sourced_description', 'sourced_email', 'sourced_phone', 'sourced_domain', 'sourced_firstname', 'sourced_lastname', 'sourced_source'])
-        df.to_excel(f"data/{order_id}.xlsx", engine="xlsxwriter")
-        
-        session.query(Order).filter(Order.id == order_id).update({"error": False})
-    except:
-        session.query(Order).filter(Order.id == order_id).update({"error": True})
+async def scrape_heiminfo_data():
+    articleLinks = []
+    headers = {
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Referer': 'https://www.heiminfo.ch/institutionen/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+        'X-Requested-With': 'XMLHttpRequest'
+    }
     
-    session.query(Order).filter(Order.id == order_id).update({"finished": True})
-    session.commit()
+    s = requests.Session()
+    response = s.get('https://www.heiminfo.ch/institutionen/?sort=score&searchterm=&distance=&platform=&mandatory=&optional=&livingtype=&freeplaces=', headers=headers)
+    metaData = response.json()
+    pageSize = metaData['PAGESIZE']
+    total = metaData['TOTAL']
+    pageLimit = ceil(total / pageSize)
+    
+    def getUrl(page):
+        url = f'https://www.heiminfo.ch/institutionen/page/{page}'
+        resp = s.get(url, headers=headers)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            
+            soup = BeautifulSoup(data['HTML'], 'html.parser')
+            articles: List[Tag] = soup.find_all('article', class_='institution')
+            
+            for article in articles:
+                link = 'https://www.heiminfo.ch' + article.find('a').get('href')
+                articleLinks.append(link)
+                
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        executor.map(getUrl, range(1, pageLimit + 1))
+    
+    jobs = []
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        results = list(executor.map(get_detail, articleLinks))
+
+        jobs.extend(results)
+
+    async with Actor:
+        dataset = await Actor.open_dataset(name='socialinfo')
+
+        for job in jobs:
+            await dataset.push_data(job)
+

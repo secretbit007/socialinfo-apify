@@ -1,11 +1,5 @@
-import os
 import requests
-import pandas as pd
-import xlsxwriter
-from datetime import datetime
-from sqlalchemy.orm import Session
-
-from models.orders import Order
+from apify import Actor
 
 def getCategories():
     url = 'https://www.job-room.ch/referenceservice/api/_search/occupations/label?prefix=sozial&types=AVAM,CHISCO3,CHISCO5&resultSize=50&_ng=ZGU='
@@ -132,33 +126,14 @@ def getJobs(categories: list, jobItems: list):
         
         page += 1
     
-def scrape_data(start_date, end_date, order_id, session: Session):
-    try:
-        if not os.path.exists('data'):
-            os.mkdir('data')
-            
-        results = []
-        
-        categories = getCategories()
-        getJobs(categories, results)
-        
-        jobs = []
-        
-        for result in results:
-            try:
-                sortingDate = datetime.fromisoformat(result['sourced_published_date']).date()
-                        
-                if sortingDate >= start_date and sortingDate <= end_date:
-                    jobs.append(result)
-            except:
-                pass
-        
-        df = pd.DataFrame(jobs, columns=['sourced_uid', 'sourced_title', 'sourced_percentage_lower', 'sourced_percentage_upper', 'sourced_position', 'sourced_organisation', 'sourced_employment', 'sourced_published_date', 'sourced_address', 'sourced_state', 'sourced_zip', 'sourced_city', 'sourced_url', 'sourced_description', 'sourced_email', 'sourced_phone', 'sourced_domain', 'sourced_firstname', 'sourced_lastname', 'sourced_source'])
-        df.to_excel(f"data/{order_id}.xlsx", engine="xlsxwriter")
-        
-        session.query(Order).filter(Order.id == order_id).update({"error": False})
-    except:
-        session.query(Order).filter(Order.id == order_id).update({"error": True})
+async def scrape_workswiss_data():
+    jobs = []
     
-    session.query(Order).filter(Order.id == order_id).update({"finished": True})
-    session.commit()
+    categories = getCategories()
+    getJobs(categories, jobs)
+
+    async with Actor:
+        dataset = await Actor.open_dataset(name='socialinfo')
+
+        for job in jobs:
+            await dataset.push_data(job)

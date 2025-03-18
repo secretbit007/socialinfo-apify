@@ -1,15 +1,9 @@
-import os
 import re
 import json
 import requests
-import pandas as pd
-import xlsxwriter
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from bs4 import BeautifulSoup
-from sqlalchemy.orm import Session
-
-from models.orders import Order
+from apify import Actor
 
 def getDetail(info: str):
     jobId = info['i']
@@ -40,7 +34,9 @@ def getDetail(info: str):
             emailObj = re.search(r'[\w\.-]+@([\w-]+\.)+[\w-]{2,4}', soup.find('div', id='kontakt').text.strip())
             
             if emailObj:
-                result['sourced_email'] = emailObj.group(0).strip()
+                email = emailObj.group(0).strip()
+                email = re.sub(r'\.ch.+', '.ch', email)
+                result['sourced_email'] = email
             
         phoneObj = re.search(r'[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[\s0-9-]{9,14}', soup.find('div', id='kontakt').text.strip())
         
@@ -86,37 +82,22 @@ def getDetail(info: str):
                     
     return result
     
-def scrape_data(start_date, end_date, order_id, session: Session):
-    try:
-        if not os.path.exists('data'):
-            os.mkdir('data')
-            
-        resp = requests.get('https://www.sozjobs.ch/')
+async def scrape_sozjobs_data():
+    jobs = []
+    resp = requests.get('https://www.sozjobs.ch/')
 
-        if resp.status_code == 200:
-            html = resp.text
-            info = json.loads(re.search(r'aJobs = (.+)</script>', html).group(1))
+    if resp.status_code == 200:
+        html = resp.text
+        info = json.loads(re.search(r'aJobs = (.+)</script>', html).group(1))
+            
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            results = executor.map(getDetail, info)
+
+            jobs.extend(results)
+
+    async with Actor:
+        dataset = await Actor.open_dataset(name='socialinfo')
+
+        for job in jobs:
+            await dataset.push_data(job)
                 
-            with ThreadPoolExecutor(max_workers=100) as executor:
-                results = executor.map(getDetail, info)
-        
-        jobs = []
-        
-        for result in results:
-            try:
-                sortingDate = datetime.strptime(result['sourced_published_date'], '%d.%m.%Y').date()
-                        
-                if sortingDate >= start_date and sortingDate <= end_date:
-                    jobs.append(result)
-            except:
-                pass
-                
-        df = pd.DataFrame(jobs, columns=['sourced_uid', 'sourced_title', 'sourced_percentage_lower', 'sourced_percentage_upper', 'sourced_position', 'sourced_organisation', 'sourced_employment', 'sourced_published_date', 'sourced_address', 'sourced_state', 'sourced_zip', 'sourced_city', 'sourced_url', 'sourced_description', 'sourced_email', 'sourced_phone', 'sourced_domain', 'sourced_firstname', 'sourced_lastname', 'sourced_source'])
-        df.to_excel(f"data/{order_id}.xlsx", engine="xlsxwriter")
-        
-        session.query(Order).filter(Order.id == order_id).update({"error": False})
-    except:
-        session.query(Order).filter(Order.id == order_id).update({"error": True})
-    
-    session.query(Order).filter(Order.id == order_id).update({"finished": True})
-    session.commit()

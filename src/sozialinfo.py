@@ -156,14 +156,16 @@ def get_slugs() -> list:
         
         if page_index == page_limit:
             break
-        
     return slugs
 
 def get_email(text: str) -> str:
     email_re = re.search(r'[\w\.-]+@([\w-]+\.)+[\w-]{2,4}', text)
     
     if email_re:
-        return email_re.group(0).strip()
+        email = email_re.group(0).strip()
+        email = re.sub(r'\.ch.+', '.ch', email)
+        
+        return email
     else:
         return ''
         
@@ -203,7 +205,7 @@ def get_detail(slug: dict) -> dict:
     
     return info
     
-async def scrape_data() -> None:
+async def scrape_sozialinfo_data() -> None:
     slugs = get_slugs()
     
     jobs = []

@@ -1,13 +1,9 @@
-import os
 import json
 import requests
-import pandas as pd
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from sqlalchemy.orm import Session
-
-from models.orders import Order
+from apify import Actor
 
 def get_slugs():
     is_first = True
@@ -84,22 +80,17 @@ def get_detail(info):
 
     return row
 
-def scrape_data(start_date, end_date, order_id, session: Session):
-    try:
-        if not os.path.exists('data'):
-            os.mkdir('data')
+async def scrape_stiftungschweiz_data():
+    jobs = []
+    slugs = get_slugs()
+    
+    with ThreadPoolExecutor(max_workers=100) as executor:
+        results = executor.map(get_detail, slugs)
 
-        slugs = get_slugs()
-        
-        with ThreadPoolExecutor(max_workers=100) as executor:
-            jobs = executor.map(get_detail, slugs)
-        
-        df = pd.DataFrame(jobs, columns=['sourced_uid', 'sourced_title', 'sourced_percentage_lower', 'sourced_percentage_upper', 'sourced_position', 'sourced_organisation', 'sourced_employment', 'sourced_published_date', 'sourced_address', 'sourced_state', 'sourced_zip', 'sourced_city', 'sourced_url', 'sourced_description', 'sourced_email', 'sourced_phone', 'sourced_domain', 'sourced_firstname', 'sourced_lastname', 'sourced_source'])
-        df.to_excel(f"data/{order_id}.xlsx", engine="xlsxwriter")
+        jobs.extend(results)
 
-        session.query(Order).filter(Order.id == order_id).update({"error": False})
-    except:
-        session.query(Order).filter(Order.id == order_id).update({"error": True})
+    async with Actor:
+        dataset = await Actor.open_dataset(name='socialinfo')
 
-    session.query(Order).filter(Order.id == order_id).update({"finished": True})
-    session.commit()
+        for job in jobs:
+            await dataset.push_data(job)

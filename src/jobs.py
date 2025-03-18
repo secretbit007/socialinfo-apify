@@ -1,13 +1,7 @@
-import os
-import pandas as pd
 import requests
-import xlsxwriter
-from datetime import datetime
-from sqlalchemy.orm import Session
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-
-from models.orders import Order
+from apify import Actor
 
 def getIds(category):
     page = 1
@@ -130,37 +124,23 @@ def getDetail(id: str):
             
     return job
 
-def scrape_data(start_date, end_date, order_id, session: Session):
-    try:
-        if not os.path.exists('data'):
-            os.mkdir('data')
+async def scrape_jobs_data():
+    jobs = []
+    jobIds = []
+
+    jobIds += getIds(107)
+    jobIds += getIds(112)
+    jobIds += getIds(113)
+
+    with ThreadPoolExecutor(max_workers=100) as executor:
+        results = executor.map(getDetail, jobIds)
+
+        jobs.extend(results)
+
+    async with Actor:
+        dataset = await Actor.open_dataset(name='socialinfo')
+
+        for job in jobs:
+            await dataset.push_data(job)
             
-        jobs = []
-        jobIds = []
-        
-        jobIds += getIds(107)
-        jobIds += getIds(112)
-        jobIds += getIds(113)
-        
-        with ThreadPoolExecutor(max_workers=100) as executor:
-            results = executor.map(getDetail, jobIds)
-        
-        for result in results:
-            try:
-                sortingDate = datetime.fromisoformat(result['sourced_published_date']).date()
-                
-                if sortingDate >= start_date and sortingDate <= end_date:
-                    jobs.append(result)
-            except:
-                pass
-            
-        df = pd.DataFrame(jobs, columns=['sourced_uid', 'sourced_title', 'sourced_percentage_lower', 'sourced_percentage_upper', 'sourced_position', 'sourced_organisation', 'sourced_employment', 'sourced_published_date', 'sourced_address', 'sourced_state', 'sourced_zip', 'sourced_city', 'sourced_url', 'sourced_description', 'sourced_email', 'sourced_phone', 'sourced_domain', 'sourced_firstname', 'sourced_lastname', 'sourced_source'])
-        df.to_excel(f"data/{order_id}.xlsx", engine="xlsxwriter")
-        
-        session.query(Order).filter(Order.id == order_id).update({"error": False})
-    except:
-        session.query(Order).filter(Order.id == order_id).update({"error": True})
-    
-    session.query(Order).filter(Order.id == order_id).update({"finished": True})
-    session.commit()
         

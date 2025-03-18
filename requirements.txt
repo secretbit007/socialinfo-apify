@@ -3,3 +3,5 @@
 
 apify < 3.0
 bs4
+selenium
+selenium-driverless
